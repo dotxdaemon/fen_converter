@@ -10,7 +10,7 @@
         max-width: 900px;
         margin: 0 auto;
         padding: 2em;
-        background: #000;
+        background: linear-gradient(135deg, #000, #222);
         color: #c0c0c0;
       }
 
@@ -21,6 +21,11 @@
 
       header h1 {
         color: #FFB347;
+        font-size: 3em;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        text-shadow: 0 0 10px rgba(255, 179, 71, 0.8), 0 0 20px rgba(255, 179, 71, 0.6);
+        margin: 0;
       }
 
       .gallery {
@@ -36,6 +41,11 @@
         padding: 1em;
         border-radius: 8px;
         box-shadow: 0 2px 4px rgba(192, 192, 192, 0.1);
+        transition: transform 0.2s;
+      }
+
+      .gallery li:hover {
+        transform: scale(1.02);
       }
 
       .gallery img {
@@ -52,7 +62,7 @@
   </head>
   <body>
     <header>
-      <h1>Cinematography Shots</h1>
+      <h1>PURE CINEMA</h1>
     </header>
     <p><a href="{{ url_for('upload') }}">Upload a new shot</a></p>
 
