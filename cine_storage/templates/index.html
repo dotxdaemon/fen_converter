@@ -1,24 +1,83 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <title>Cinematography Shots</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-      body { font-family: Arial, sans-serif; margin: 2em; }
-      img { max-width: 400px; height: auto; display: block; margin-bottom: 1em; }
-      form input[type=text] { padding: 0.5em; margin-right: 1em; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 2em;
+        background: #f8f8f8;
+        color: #333;
+      }
+
+      header {
+        text-align: center;
+        margin-bottom: 2em;
+      }
+
+      form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1em;
+        align-items: center;
+        margin-bottom: 2em;
+      }
+
+      form input[type="text"],
+      form input[type="file"] {
+        flex: 1;
+        padding: 0.5em;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+
+      form input[type="submit"] {
+        padding: 0.5em 1em;
+        background: #000;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+
+      .gallery {
+        list-style: none;
+        padding: 0;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 2em;
+      }
+
+      .gallery li {
+        background: #fff;
+        padding: 1em;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .gallery img {
+        width: 100%;
+        height: auto;
+        display: block;
+        border-radius: 4px;
+      }
     </style>
   </head>
   <body>
-    <h1>Upload a Shot</h1>
+    <header>
+      <h1>Cinematography Shots</h1>
+    </header>
     <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data">
       <input type="text" name="title" placeholder="Title" />
       <input type="file" name="shot" required />
       <input type="submit" value="Upload" />
     </form>
 
-    <h2>Gallery</h2>
-    <ul>
+    <ul class="gallery">
     {% for entry in entries %}
       <li>
         {% if entry.title %}<h3>{{ entry.title }}</h3>{% endif %}
