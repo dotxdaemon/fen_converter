@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Cinematography Shots</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 2em; }
+      img { max-width: 400px; height: auto; display: block; margin-bottom: 1em; }
+      form input[type=text] { padding: 0.5em; margin-right: 1em; }
+    </style>
+  </head>
+  <body>
+    <h1>Upload a Shot</h1>
+    <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data">
+      <input type="text" name="title" placeholder="Title" />
+      <input type="file" name="shot" required />
+      <input type="submit" value="Upload" />
+    </form>
+
+    <h2>Gallery</h2>
+    <ul>
+    {% for entry in entries %}
+      <li>
+        {% if entry.title %}<h3>{{ entry.title }}</h3>{% endif %}
+        <img src="{{ url_for('uploaded_file', filename=entry.filename) }}" alt="{{ entry.title }}" />
+      </li>
+    {% else %}
+      <li>No shots yet.</li>
+    {% endfor %}
+    </ul>
+  </body>
+</html>

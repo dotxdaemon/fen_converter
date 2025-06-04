@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+cine_storage/uploads/
+
