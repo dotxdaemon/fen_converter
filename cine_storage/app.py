@@ -38,9 +38,11 @@ def index():
     entries = load_entries()
     return render_template('index.html', entries=entries)
 
-
-@app.route('/upload', methods=['POST'])
+@app.route('/upload', methods=['GET', 'POST'])
 def upload():
+    if request.method == 'GET':
+        return render_template('upload.html')
+
     file = request.files.get('shot')
     title = request.form.get('title', '')
     movie = request.form.get('movie', '')
