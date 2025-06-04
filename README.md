@@ -3,6 +3,7 @@
 A simple Flask application for storing and displaying cinematography shots. Upload images with metadata including title, movie, director, director of photography, and release year. Browse your gallery with all details shown.
 
 Visit `/` to view the gallery. Use `/upload` to add new shots with their metadata.
+Data is now stored in a local SQLite database. Any existing `data.json` or `data.csv` files will be imported automatically on the first run.
 
 ### Running locally
 
