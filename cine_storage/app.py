@@ -12,7 +12,7 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
-app.secret_key = 'dev'
+app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24).hex())
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -72,4 +72,5 @@ def uploaded_file(filename):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    debug = os.environ.get('FLASK_DEBUG', '').lower() in {'1', 'true', 'yes'}
+    app.run(debug=debug)
