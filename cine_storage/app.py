@@ -43,12 +43,23 @@ def index():
 def upload():
     file = request.files.get('shot')
     title = request.form.get('title', '')
+    movie = request.form.get('movie', '')
+    director = request.form.get('director', '')
+    dop = request.form.get('dop', '')
+    year = request.form.get('year', '')
     if file and allowed_file(file.filename):
         filename = datetime.now().strftime('%Y%m%d%H%M%S_') + secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
         entries = load_entries()
-        entries.insert(0, {'title': title, 'filename': filename})
+        entries.insert(0, {
+            'title': title,
+            'filename': filename,
+            'movie': movie,
+            'director': director,
+            'dop': dop,
+            'year': year,
+        })
         save_entries(entries)
     return redirect(url_for('index'))
 
