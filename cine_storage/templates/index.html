@@ -17,15 +17,33 @@
       header {
         text-align: center;
         margin-bottom: 2em;
+        position: relative;
       }
 
       header h1 {
         color: #FFB347;
-        font-size: 3em;
+        font-size: 5em;
         letter-spacing: 0.05em;
         text-transform: uppercase;
         text-shadow: 0 0 10px rgba(255, 179, 71, 0.8), 0 0 20px rgba(255, 179, 71, 0.6);
         margin: 0;
+        transition: transform 0.3s;
+      }
+
+      header h1:hover {
+        transform: scale(1.05) rotate(-1deg);
+      }
+
+      header::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        bottom: -0.5em;
+        transform: translateX(-50%);
+        width: 60%;
+        height: 4px;
+        background: linear-gradient(90deg, #FFB347, transparent);
+        border-radius: 2px;
       }
 
       .gallery {
