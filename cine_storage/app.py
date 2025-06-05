@@ -3,18 +3,22 @@ import json
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory
 from werkzeug.utils import secure_filename
+from PIL import Image
 
 BASE_DIR = os.path.dirname(__file__)
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
+THUMB_FOLDER = os.path.join(BASE_DIR, 'thumbs')
 DATA_FILE = os.path.join(BASE_DIR, 'data.json')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['THUMB_FOLDER'] = THUMB_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24).hex())
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(THUMB_FOLDER, exist_ok=True)
 
 
 def allowed_file(filename: str) -> bool:
@@ -53,6 +57,14 @@ def upload():
         filename = datetime.now().strftime('%Y%m%d%H%M%S_') + secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
+        # create thumbnail
+        thumb_path = os.path.join(app.config['THUMB_FOLDER'], filename)
+        try:
+            with Image.open(filepath) as img:
+                img.thumbnail((400, 400))
+                img.save(thumb_path)
+        except Exception:
+            pass
         entries = load_entries()
         entries.insert(0, {
             'title': title,
@@ -69,6 +81,11 @@ def upload():
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+
+@app.route('/thumbs/<filename>')
+def thumbnail(filename):
+    return send_from_directory(app.config['THUMB_FOLDER'], filename)
 
 
 if __name__ == '__main__':
