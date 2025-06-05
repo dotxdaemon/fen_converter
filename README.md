@@ -1,8 +1,5 @@
-# Cinematography Shots Website
+# PURE CINEMA
 
-A simple Flask application for storing and displaying cinematography shots. Upload images with metadata including title, movie, director, director of photography, and release year. Browse your gallery with all details shown.
-
-Visit `/` to view the gallery. Use `/upload` to add new shots with their metadata.
 
 ### Running locally
 
