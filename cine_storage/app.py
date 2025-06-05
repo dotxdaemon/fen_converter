@@ -1,5 +1,4 @@
 import os
-import json
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory
 from werkzeug.utils import secure_filename
@@ -7,8 +6,7 @@ from PIL import Image
 
 BASE_DIR = os.path.dirname(__file__)
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
-THUMB_FOLDER = os.path.join(BASE_DIR, 'thumbs')
-DATA_FILE = os.path.join(BASE_DIR, 'data.json')
+
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 app = Flask(__name__)
@@ -16,6 +14,14 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['THUMB_FOLDER'] = THUMB_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24).hex())
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + DATABASE_FILE
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db.init_app(app)
+
+with app.app_context():
+    db.create_all()
+    migrate_from_files(BASE_DIR)
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(THUMB_FOLDER, exist_ok=True)
@@ -25,22 +31,19 @@ def allowed_file(filename: str) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def load_entries():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, 'r') as f:
-            return json.load(f)
-    return []
 
 
-def save_entries(entries) -> None:
-    with open(DATA_FILE, 'w') as f:
-        json.dump(entries, f)
+
+
+def update_indices(entry):
+    for field, index in search_indices.items():
+        value = str(entry.get(field, "")).lower()
+        index.setdefault(value, []).insert(0, entry)
 
 
 @app.route('/')
 def index():
-    entries = load_entries()
-    return render_template('index.html', entries=entries)
+
 
 @app.route('/upload', methods=['GET', 'POST'])
 def upload():
@@ -54,27 +57,17 @@ def upload():
     dop = request.form.get('dop', '')
     year = request.form.get('year', '')
     if file and allowed_file(file.filename):
+        exif = read_exif_metadata(file.stream)
+        title = title or exif.get('title', '')
+        movie = movie or exif.get('movie', '')
+        director = director or exif.get('director', '')
+        dop = dop or exif.get('dop', '')
+        year = year or exif.get('year', '')
+        file.stream.seek(0)
         filename = datetime.now().strftime('%Y%m%d%H%M%S_') + secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
-        # create thumbnail
-        thumb_path = os.path.join(app.config['THUMB_FOLDER'], filename)
-        try:
-            with Image.open(filepath) as img:
-                img.thumbnail((400, 400))
-                img.save(thumb_path)
-        except Exception:
-            pass
-        entries = load_entries()
-        entries.insert(0, {
-            'title': title,
-            'filename': filename,
-            'movie': movie,
-            'director': director,
-            'dop': dop,
-            'year': year,
-        })
-        save_entries(entries)
+
     return redirect(url_for('index'))
 
 
