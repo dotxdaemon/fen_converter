@@ -3,4 +3,5 @@ Flask-Login
 Flask-SQLAlchemy
 Authlib
 Pillow
+pytesseract
 
