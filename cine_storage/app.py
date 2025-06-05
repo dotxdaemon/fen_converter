@@ -30,33 +30,17 @@ def allowed_file(filename: str) -> bool:
 
 
 
-def read_exif_metadata(file_obj):
-    """Extract select EXIF tags as strings."""
-    metadata = {}
-    try:
-        file_obj.seek(0)
-        tags = exifread.process_file(file_obj, details=False)
-    except Exception:
-        return metadata
 
-    def tag_value(name):
-        val = tags.get(name)
-        return str(val) if val else ''
 
-    metadata['title'] = tag_value('Image XPTitle') or tag_value('Image ImageDescription')
-    metadata['movie'] = tag_value('Image XPSubject')
-    metadata['director'] = tag_value('Image XPAuthor')
-    metadata['dop'] = tag_value('Image Artist')
-    dt = tag_value('EXIF DateTimeOriginal')
-    if dt:
-        metadata['year'] = dt.split(':')[0]
-    return metadata
+def update_indices(entry):
+    for field, index in search_indices.items():
+        value = str(entry.get(field, "")).lower()
+        index.setdefault(value, []).insert(0, entry)
 
 
 @app.route('/')
 def index():
-    entries = Shot.query.order_by(Shot.id.desc()).all()
-    return render_template('index.html', entries=entries)
+
 
 @app.route('/upload', methods=['GET', 'POST'])
 def upload():
@@ -80,16 +64,7 @@ def upload():
         filename = datetime.now().strftime('%Y%m%d%H%M%S_') + secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
-        shot = Shot(
-            title=title or None,
-            filename=filename,
-            movie=movie or None,
-            director=director or None,
-            dop=dop or None,
-            year=int(year) if year else None,
-        )
-        db.session.add(shot)
-        db.session.commit()
+
     return redirect(url_for('index'))
 
 
