@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Upload Shot</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 2em;
+        background: #000;
+        color: #c0c0c0;
+      }
+
+      header {
+        text-align: center;
+        margin-bottom: 2em;
+        position: relative;
+      }
+
+      header h1 {
+        color: #FFB347;
+        font-size: 5em;
+        text-shadow: 0 0 10px rgba(255, 179, 71, 0.8), 0 0 20px rgba(255, 179, 71, 0.6);
+        margin: 0;
+        transition: transform 0.3s;
+      }
+
+      header h1:hover {
+        transform: scale(1.05) rotate(-1deg);
+      }
+
+      header::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        bottom: -0.5em;
+        transform: translateX(-50%);
+        width: 60%;
+        height: 4px;
+        background: linear-gradient(90deg, #FFB347, transparent);
+        border-radius: 2px;
+      }
+
+      form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1em;
+        align-items: center;
+        margin-bottom: 2em;
+      }
+
+      form input[type="text"],
+      form input[type="number"],
+      form input[type="file"] {
+        flex: 1;
+        padding: 0.5em;
+        background: #222;
+        border: 1px solid #777;
+        color: #eee;
+        border-radius: 4px;
+      }
+
+      form input[type="submit"] {
+        padding: 0.5em 1em;
+        background: #666;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+
+      a {
+        color: #FFB347;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Upload Shot</h1>
+    </header>
+    <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data">
+      <input type="text" name="title" placeholder="Shot title" />
+      <input type="text" name="movie" placeholder="Movie" />
+      <input type="text" name="director" placeholder="Director" />
+      <input type="text" name="dop" placeholder="Director of Photography" />
+      <input type="number" name="year" placeholder="Year" min="1888" />
+      <input type="file" name="shot" required />
+      <input type="submit" value="Upload" />
+    </form>
+    <p><a href="{{ url_for('index') }}">Back to gallery</a></p>
+  </body>
+</html>

@@ -16,61 +16,20 @@
         max-width: 900px;
         margin: 0 auto;
         padding: 2em;
-        background: linear-gradient(135deg, var(--light-bg) 0%, var(--light-bg2) 100%);
-        min-height: 100vh;
-        color: #5a3e1b;
-        scroll-behavior: smooth;
+
       }
 
       header {
         text-align: center;
         margin-bottom: 2em;
-        padding-bottom: 1em;
-        border-bottom: 2px solid #E6C299;
-        background: rgba(255, 255, 255, 0.8);
-        backdrop-filter: blur(2px);
-        position: sticky;
-        top: 0;
-        z-index: 1;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+
       }
 
-      header h1 {
-        color: var(--primary);
-        font-size: 3em;
-        letter-spacing: 0.05em;
-        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
-        margin: 0;
+      header h1:hover {
+        transform: scale(1.05) rotate(-1deg);
       }
 
-      form {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 1em;
-        align-items: center;
-        margin-bottom: 2em;
-      }
 
-      form input[type="text"],
-      form input[type="file"] {
-        flex: 1;
-        padding: 0.5em;
-        border: 1px solid #E6C299;
-        border-radius: 4px;
-      }
-
-      form input[type="submit"] {
-        padding: 0.5em 1em;
-        background: var(--primary);
-        color: #fff;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: background-color 0.2s;
-      }
-
-      form input[type="submit"]:hover {
-        background: #b35400;
       }
 
       .gallery {
@@ -82,16 +41,10 @@
       }
 
       .gallery li {
-        background: #fffdf4;
+        background: #111;
         padding: 1em;
         border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(204, 102, 0, 0.1);
-        transition: transform 0.2s, box-shadow 0.2s;
-      }
 
-      .gallery li:hover {
-        transform: scale(1.05);
-        box-shadow: 0 4px 8px rgba(204, 102, 0, 0.2);
       }
 
       .gallery img {
@@ -100,21 +53,17 @@
         display: block;
         border-radius: 4px;
       }
+
+      a {
+        color: #FFB347;
+      }
     </style>
   </head>
   <body>
     <header>
       <h1>PURE CINEMA</h1>
     </header>
-    <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data">
-      <input type="text" name="title" placeholder="Shot title" />
-      <input type="text" name="movie" placeholder="Movie" />
-      <input type="text" name="director" placeholder="Director" />
-      <input type="text" name="dop" placeholder="Director of Photography" />
-      <input type="number" name="year" placeholder="Year" min="1888" />
-      <input type="file" name="shot" required />
-      <input type="submit" value="Upload" />
-    </form>
+    <p><a href="{{ url_for('upload') }}">Upload a new shot</a></p>
 
     <ul class="gallery">
     {% for entry in entries %}
