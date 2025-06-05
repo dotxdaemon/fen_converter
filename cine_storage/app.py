@@ -1,6 +1,15 @@
 import os
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory
+from flask_login import (
+    LoginManager,
+    UserMixin,
+    login_user,
+    logout_user,
+    login_required,
+    current_user,
+)
+from authlib.integrations.flask_client import OAuth
 from werkzeug.utils import secure_filename
 from PIL import Image
 
@@ -23,8 +32,47 @@ with app.app_context():
     db.create_all()
     migrate_from_files(BASE_DIR)
 
+# Flask-Login setup
+login_manager = LoginManager(app)
+login_manager.login_view = 'index'
+
+# OAuth setup
+oauth = OAuth(app)
+oauth.register(
+    name='github',
+    client_id=os.environ.get('GITHUB_CLIENT_ID'),
+    client_secret=os.environ.get('GITHUB_CLIENT_SECRET'),
+    access_token_url='https://github.com/login/oauth/access_token',
+    authorize_url='https://github.com/login/oauth/authorize',
+    api_base_url='https://api.github.com/',
+    client_kwargs={'scope': 'user:email'},
+)
+oauth.register(
+    name='google',
+    client_id=os.environ.get('GOOGLE_CLIENT_ID'),
+    client_secret=os.environ.get('GOOGLE_CLIENT_SECRET'),
+    access_token_url='https://oauth2.googleapis.com/token',
+    authorize_url='https://accounts.google.com/o/oauth2/auth',
+    api_base_url='https://www.googleapis.com/oauth2/v1/',
+    client_kwargs={'scope': 'openid email profile'},
+)
+
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(THUMB_FOLDER, exist_ok=True)
+
+
+class User(UserMixin):
+    def __init__(self, user_id: str, name: str):
+        self.id = user_id
+        self.name = name
+
+
+users = {}
+
+
+@login_manager.user_loader
+def load_user(user_id: str):
+    return users.get(user_id)
 
 
 def allowed_file(filename: str) -> bool:
@@ -41,11 +89,46 @@ def update_indices(entry):
         index.setdefault(value, []).insert(0, entry)
 
 
+@app.route('/login/<provider>')
+def oauth_login(provider: str):
+    client = oauth.create_client(provider)
+    redirect_uri = url_for('authorize', provider=provider, _external=True)
+    return client.authorize_redirect(redirect_uri)
+
+
+@app.route('/authorize/<provider>')
+def authorize(provider: str):
+    client = oauth.create_client(provider)
+    token = client.authorize_access_token()
+    if provider == 'github':
+        resp = client.get('user', token=token)
+        info = resp.json()
+        uid = str(info['id'])
+        name = info.get('name') or info.get('login')
+    else:
+        resp = client.get('userinfo', token=token)
+        info = resp.json()
+        uid = info['id']
+        name = info.get('name')
+    user = User(uid, name)
+    users[uid] = user
+    login_user(user)
+    return redirect(url_for('index'))
+
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('index'))
+
+
 @app.route('/')
 def index():
 
 
 @app.route('/upload', methods=['GET', 'POST'])
+@login_required
 def upload():
     if request.method == 'GET':
         return render_template('upload.html')
