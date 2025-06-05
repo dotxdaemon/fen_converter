@@ -1,5 +1,4 @@
 import os
-import json
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory
 from flask_login import (
@@ -12,16 +11,26 @@ from flask_login import (
 )
 from authlib.integrations.flask_client import OAuth
 from werkzeug.utils import secure_filename
+from PIL import Image
 
 BASE_DIR = os.path.dirname(__file__)
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
-DATA_FILE = os.path.join(BASE_DIR, 'data.json')
+
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['THUMB_FOLDER'] = THUMB_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24).hex())
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + DATABASE_FILE
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db.init_app(app)
+
+with app.app_context():
+    db.create_all()
+    migrate_from_files(BASE_DIR)
 
 # Flask-Login setup
 login_manager = LoginManager(app)
@@ -49,6 +58,7 @@ oauth.register(
 )
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(THUMB_FOLDER, exist_ok=True)
 
 
 class User(UserMixin):
@@ -69,16 +79,14 @@ def allowed_file(filename: str) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def load_entries():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, 'r') as f:
-            return json.load(f)
-    return []
 
 
-def save_entries(entries) -> None:
-    with open(DATA_FILE, 'w') as f:
-        json.dump(entries, f)
+
+
+def update_indices(entry):
+    for field, index in search_indices.items():
+        value = str(entry.get(field, "")).lower()
+        index.setdefault(value, []).insert(0, entry)
 
 
 @app.route('/login/<provider>')
@@ -117,8 +125,7 @@ def logout():
 
 @app.route('/')
 def index():
-    entries = load_entries()
-    return render_template('index.html', entries=entries)
+
 
 @app.route('/upload', methods=['GET', 'POST'])
 @login_required
@@ -133,25 +140,28 @@ def upload():
     dop = request.form.get('dop', '')
     year = request.form.get('year', '')
     if file and allowed_file(file.filename):
+        exif = read_exif_metadata(file.stream)
+        title = title or exif.get('title', '')
+        movie = movie or exif.get('movie', '')
+        director = director or exif.get('director', '')
+        dop = dop or exif.get('dop', '')
+        year = year or exif.get('year', '')
+        file.stream.seek(0)
         filename = datetime.now().strftime('%Y%m%d%H%M%S_') + secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
-        entries = load_entries()
-        entries.insert(0, {
-            'title': title,
-            'filename': filename,
-            'movie': movie,
-            'director': director,
-            'dop': dop,
-            'year': year,
-        })
-        save_entries(entries)
+
     return redirect(url_for('index'))
 
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+
+@app.route('/thumbs/<filename>')
+def thumbnail(filename):
+    return send_from_directory(app.config['THUMB_FOLDER'], filename)
 
 
 if __name__ == '__main__':
