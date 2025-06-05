@@ -1,2 +1,6 @@
 Flask
+Flask-Login
+Flask-SQLAlchemy
+Authlib
+Pillow
 
