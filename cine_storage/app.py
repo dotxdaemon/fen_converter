@@ -2,14 +2,16 @@ import os
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory
 from werkzeug.utils import secure_filename
+from PIL import Image
 
 BASE_DIR = os.path.dirname(__file__)
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
-DATABASE_FILE = os.path.join(BASE_DIR, 'shots.db')
+
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['THUMB_FOLDER'] = THUMB_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24).hex())
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + DATABASE_FILE
@@ -22,6 +24,7 @@ with app.app_context():
     migrate_from_files(BASE_DIR)
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(THUMB_FOLDER, exist_ok=True)
 
 
 def allowed_file(filename: str) -> bool:
@@ -71,6 +74,11 @@ def upload():
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+
+@app.route('/thumbs/<filename>')
+def thumbnail(filename):
+    return send_from_directory(app.config['THUMB_FOLDER'], filename)
 
 
 if __name__ == '__main__':

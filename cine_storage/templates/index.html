@@ -70,7 +70,9 @@
     {% for entry in entries %}
       <li>
         {% if entry.title %}<h3>{{ entry.title }}</h3>{% endif %}
-        <img src="{{ url_for('uploaded_file', filename=entry.filename) }}" alt="{{ entry.title }}" />
+        <a href="{{ url_for('uploaded_file', filename=entry.filename) }}">
+          <img src="{{ url_for('thumbnail', filename=entry.filename) }}" alt="{{ entry.title }}" />
+        </a>
         <p>
           {% if entry.movie %}<strong>Movie:</strong> {{ entry.movie }}<br>{% endif %}
           {% if entry.director %}<strong>Director:</strong> {{ entry.director }}<br>{% endif %}
