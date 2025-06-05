@@ -59,6 +59,16 @@
   <body>
     <header>
       <h1>Upload Shot</h1>
+      <p>
+        {% if current_user.is_authenticated %}
+          Logged in as {{ current_user.name }} |
+          <a href="{{ url_for('logout') }}">Logout</a>
+        {% else %}
+          <a href="{{ url_for('oauth_login', provider='github') }}">Login with GitHub</a>
+          |
+          <a href="{{ url_for('oauth_login', provider='google') }}">Login with Google</a>
+        {% endif %}
+      </p>
     </header>
     <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data">
       <input type="text" name="title" placeholder="Shot title" />
