@@ -2,7 +2,6 @@ import os
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory
 from werkzeug.utils import secure_filename
-from .models import db, Shot, migrate_from_files
 
 BASE_DIR = os.path.dirname(__file__)
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
@@ -31,6 +30,29 @@ def allowed_file(filename: str) -> bool:
 
 
 
+def read_exif_metadata(file_obj):
+    """Extract select EXIF tags as strings."""
+    metadata = {}
+    try:
+        file_obj.seek(0)
+        tags = exifread.process_file(file_obj, details=False)
+    except Exception:
+        return metadata
+
+    def tag_value(name):
+        val = tags.get(name)
+        return str(val) if val else ''
+
+    metadata['title'] = tag_value('Image XPTitle') or tag_value('Image ImageDescription')
+    metadata['movie'] = tag_value('Image XPSubject')
+    metadata['director'] = tag_value('Image XPAuthor')
+    metadata['dop'] = tag_value('Image Artist')
+    dt = tag_value('EXIF DateTimeOriginal')
+    if dt:
+        metadata['year'] = dt.split(':')[0]
+    return metadata
+
+
 @app.route('/')
 def index():
     entries = Shot.query.order_by(Shot.id.desc()).all()
@@ -48,6 +70,13 @@ def upload():
     dop = request.form.get('dop', '')
     year = request.form.get('year', '')
     if file and allowed_file(file.filename):
+        exif = read_exif_metadata(file.stream)
+        title = title or exif.get('title', '')
+        movie = movie or exif.get('movie', '')
+        director = director or exif.get('director', '')
+        dop = dop or exif.get('dop', '')
+        year = year or exif.get('year', '')
+        file.stream.seek(0)
         filename = datetime.now().strftime('%Y%m%d%H%M%S_') + secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
