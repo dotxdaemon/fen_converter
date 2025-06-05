@@ -1,7 +1,6 @@
 # PURE CINEMA
 
 
-
 ### Running locally
 
 ```bash
