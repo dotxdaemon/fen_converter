@@ -4,54 +4,7 @@
     <meta charset="utf-8">
     <title>PURE CINEMA</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-      body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        max-width: 900px;
-        margin: 0 auto;
-        padding: 2em;
-        background: #000;
-        color: #ddd;
-      }
-      header {
-        text-align: center;
-        margin-bottom: 2em;
-      }
-      form.search {
-        margin-top: 1em;
-        margin-bottom: 1em;
-      }
-      form.search input[type="text"] {
-        width: 70%;
-        padding: 0.5em;
-        border: 1px solid #555;
-        border-radius: 4px;
-        background: #222;
-        color: #eee;
-      }
-      .gallery {
-        list-style: none;
-        padding: 0;
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-        gap: 2em;
-      }
-      .gallery li {
-        background: #111;
-        padding: 1em;
-        border-radius: 8px;
-      }
-      .gallery img {
-        width: 100%;
-        height: auto;
-        display: block;
-        border-radius: 4px;
-      }
-      a { color: #FFB347; }
-      @media (max-width: 600px) {
-        body { padding: 1em; }
-      }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   </head>
   <body>
     <header>
@@ -66,7 +19,8 @@
         {% endif %}
       </p>
       <form class="search" action="{{ url_for('index') }}" method="get">
-        <input type="text" name="q" value="{{ query or '' }}" placeholder="Search shots...">
+        <label for="search-input" class="visually-hidden">Search shots</label>
+        <input id="search-input" type="text" name="q" value="{{ query or '' }}" placeholder="Search shots...">
       </form>
     </header>
     {% if current_user.is_authenticated %}
@@ -77,14 +31,26 @@
       <li>
         {% if entry.title %}<h3>{{ entry.title }}</h3>{% endif %}
         <a href="{{ url_for('uploaded_file', filename=entry.filename) }}">
-          <img src="{{ url_for('thumbnail', filename=entry.filename) }}" alt="{{ entry.title }}" />
+          <img src="{{ url_for('thumbnail', filename=entry.filename) }}" alt="Cinematic shot from {{ entry.movie or 'an unknown film' }}.{% if entry.title %} Titled: {{ entry.title }}{% endif %}" />
         </a>
-        <p>
-          {% if entry.movie %}<strong>Movie:</strong> {{ entry.movie }}<br>{% endif %}
-          {% if entry.director %}<strong>Director:</strong> {{ entry.director }}<br>{% endif %}
-          {% if entry.dop %}<strong>DOP:</strong> {{ entry.dop }}<br>{% endif %}
-          {% if entry.year %}<strong>Year:</strong> {{ entry.year }}{% endif %}
-        </p>
+        <dl>
+          {% if entry.movie %}
+            <dt>Movie</dt>
+            <dd>{{ entry.movie }}</dd>
+          {% endif %}
+          {% if entry.director %}
+            <dt>Director</dt>
+            <dd>{{ entry.director }}</dd>
+          {% endif %}
+          {% if entry.dop %}
+            <dt>DOP</dt>
+            <dd>{{ entry.dop }}</dd>
+          {% endif %}
+          {% if entry.year %}
+            <dt>Year</dt>
+            <dd>{{ entry.year }}</dd>
+          {% endif %}
+        </dl>
       </li>
     {% else %}
       <li>No shots yet.</li>
