@@ -5,3 +5,6 @@ Authlib
 Pillow
 pytesseract
 
+opencv-python-headless
+python-chess
+cairosvg
