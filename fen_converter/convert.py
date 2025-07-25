@@ -6,7 +6,14 @@ from typing import Dict
 import cv2
 import numpy as np
 import chess
-import cairosvg
+try:
+    import cairosvg
+except (OSError, ImportError) as e:  # pragma: no cover - environment dependent
+    raise RuntimeError(
+        "cairosvg requires the Cairo C library. Install it via your system package "
+        "manager (e.g. 'brew install cairo' on macOS or 'apt-get install libcairo2' "
+        "on Debian/Ubuntu)"
+    ) from e
 import chess.svg
 
 
