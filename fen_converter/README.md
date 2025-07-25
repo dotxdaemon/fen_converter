@@ -4,12 +4,15 @@ This small utility converts a cropped chessboard image into FEN notation. It exp
 
 ## Usage
 
-1. Install dependencies:
+1. Install the Cairo graphics library (required by `cairosvg`):
+   - macOS: `brew install cairo`
+   - Debian/Ubuntu: `sudo apt-get install libcairo2`
+   
+2. Install Python dependencies:
    ```bash
    pip install -r requirements.txt
    ```
-
-2. Run the converter on a board screenshot:
+3. Run the converter on a board screenshot:
    ```bash
    python fen_converter/convert.py path/to/board.png
    ```
