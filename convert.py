@@ -31,6 +31,22 @@ def generate_templates(square_size: int) -> Dict[str, np.ndarray]:
     return templates
 
 
+def infer_castling_rights(board: chess.Board) -> None:
+    """Infer and set castling rights based on king and rook positions."""
+    rights = []
+    if board.piece_at(chess.E1) == chess.Piece.from_symbol("K"):
+        if board.piece_at(chess.H1) == chess.Piece.from_symbol("R"):
+            rights.append("K")
+        if board.piece_at(chess.A1) == chess.Piece.from_symbol("R"):
+            rights.append("Q")
+    if board.piece_at(chess.E8) == chess.Piece.from_symbol("k"):
+        if board.piece_at(chess.H8) == chess.Piece.from_symbol("r"):
+            rights.append("k")
+        if board.piece_at(chess.A8) == chess.Piece.from_symbol("r"):
+            rights.append("q")
+    board.set_castling_fen("".join(rights) or "-")
+
+
 def board_from_image(path: str) -> chess.Board:
     img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
     if img is None:
@@ -58,6 +74,7 @@ def board_from_image(path: str) -> chess.Board:
             if best_symbol and best_score > 0.7:
                 square = chess.square(file, 7 - rank)
                 board.set_piece_at(square, chess.Piece.from_symbol(best_symbol))
+    infer_castling_rights(board)
     return board
 
 
