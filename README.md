@@ -1,41 +1,23 @@
-# PURE CINEMA
+# Chess FEN Converter
 
-A small Flask application for storing and browsing cinematography reference images.
+This utility converts a cropped chessboard image into FEN notation. It expects the image to contain only the board (8x8 squares) with standard piece designs. The conversion uses template matching with piece images generated from `python-chess`.
 
-## Running locally
+## Usage
 
-1. **Create a virtual environment** (optional but recommended)
+1. Install the Cairo graphics library (required by `cairosvg`):
+   - macOS: `brew install cairo`
+   - Debian/Ubuntu: `sudo apt-get install libcairo2`
 
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
-
-2. **Install dependencies**
+2. Install Python dependencies:
 
    ```bash
    pip install -r requirements.txt
    ```
 
-3. **Set environment variables**
-
-   The app uses OAuth for authentication. Provide the following variables if you
-   want to enable GitHub or Google logins:
-
-   - `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`
-   - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`
-
-   You can also set `SECRET_KEY` to override the generated Flask secret and
-   `FLASK_DEBUG=1` to enable debug mode.
-
-4. **Run the server**
+3. Run the converter on a board screenshot:
 
    ```bash
-   python cine_storage/app.py
+   python convert.py path/to/board.png
    ```
 
-The application starts on `http://127.0.0.1:5000/`. Uploaded images are stored
-in `cine_storage/uploads` and thumbnails in `cine_storage/thumbs`. A SQLite
-database file is created automatically in the repository directory.
-
-
+The resulting FEN string is printed to stdout. The approach is naive and works best with clear board images and the default piece style.

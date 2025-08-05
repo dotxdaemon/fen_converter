@@ -1,10 +1,4 @@
-Flask
-Flask-Login
-Flask-SQLAlchemy
-Authlib
-Pillow
-pytesseract
-
 opencv-python-headless
 python-chess
 cairosvg
+numpy
