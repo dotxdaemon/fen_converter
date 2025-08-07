@@ -27,8 +27,6 @@ def load_contours() -> Dict[str, np.ndarray]:
 
 def infer_castling_rights(board: chess.Board) -> None:
     """Infer and set castling rights based on king and rook positions."""
-    # This is a naive implementation and might not be correct for all positions,
-    # but it's what was in the original script.
     rights = []
     if board.piece_at(chess.E1) == chess.Piece.from_symbol("K"):
         if board.piece_at(chess.H1) == chess.Piece.from_symbol("R"):
@@ -61,15 +59,18 @@ def board_from_image(path: str) -> chess.Board:
         for file in range(8):
             y0 = rank * square_size
             x0 = file * square_size
-            # Add a small buffer to avoid cutting off pieces at the edge
             y1 = y0 + square_size
             x1 = x0 + square_size
             square_img = img[y0:y1, x0:x1]
 
+            # Shave off a few pixels to remove borders/annotations from the edge
+            border_margin = 4  # pixels
+            h_sq, w_sq = square_img.shape
+            if h_sq > border_margin * 2 and w_sq > border_margin * 2:
+                square_img = square_img[border_margin:h_sq - border_margin, border_margin:w_sq - border_margin]
+
             # Use adaptive thresholding to handle different square colors
-            # ADAPTIVE_THRESH_GAUSSIAN_C is often good for variable lighting
-            # Block size must be odd
-            block_size = max(square_size // 4, 5)
+            block_size = max(square_img.shape[0] // 4, 5)
             if block_size % 2 == 0:
                 block_size += 1
 
@@ -83,42 +84,41 @@ def board_from_image(path: str) -> chess.Board:
             if not contours:
                 continue
 
-            # Filter out very small contours (noise) and find the most likely piece contour
             best_match_score = float('inf')
             best_match_symbol = None
-            largest_contour = None
 
-            # Find the largest contour, assuming it's the piece
             found_contours = sorted(contours, key=cv2.contourArea, reverse=True)
             if not found_contours:
                 continue
 
             main_contour = found_contours[0]
 
-            # Ignore contours that are too small or too large to be a piece
             area = cv2.contourArea(main_contour)
-            if area < (square_size * 0.1)**2 or area > (square_size * 0.9)**2:
+            min_area = (square_size * 0.1)**2
+            max_area = (square_size * 0.9)**2
+            if area < min_area or area > max_area:
                 continue
 
             for piece_symbol, template_contour in template_contours.items():
-                # Compare the contour shape with the templates
-                score = cv2.matchShapes(main_contour, template_contour, cv2.CONTOURS_MATCH_I2, 0.0)
+                score = cv2.matchShapes(main_contour, template_contour, cv2.CONTOURS_MATCH_I1, 0.0)
                 if score < best_match_score:
                     best_match_score = score
                     best_match_symbol = piece_symbol
 
-            # If the best match is good enough, determine the piece color
-            if best_match_score < 0.35:  # Relaxed threshold a bit
-                # Improved color detection: compare piece brightness to its background
+            if best_match_score < 0.3: # Tuned threshold
                 piece_mask = np.zeros(square_img.shape, np.uint8)
                 cv2.drawContours(piece_mask, [main_contour], -1, 255, thickness=cv2.FILLED)
                 piece_mean = cv2.mean(square_img, mask=piece_mask)[0]
 
-                # Invert mask to get the background
                 bg_mask = cv2.bitwise_not(piece_mask)
-                bg_mean = cv2.mean(square_img, mask=bg_mask)[0]
+                # Avoid division by zero if mask is full
+                if cv2.countNonZero(bg_mask) == 0:
+                    # This happens on squares that are almost entirely covered by the piece.
+                    # Assume white on light squares, black on dark squares based on overall square brightness.
+                    bg_mean = cv2.mean(square_img)[0]
+                else:
+                    bg_mean = cv2.mean(square_img, mask=bg_mask)[0]
 
-                # If piece is lighter than its background, it's white.
                 is_white = piece_mean > bg_mean
 
                 final_symbol = best_match_symbol.upper() if is_white else best_match_symbol.lower()

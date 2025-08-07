@@ -1,6 +1,6 @@
 # Chess FEN Converter
 
-This utility converts a cropped chessboard image into FEN notation. It expects the image to contain only the board (8x8 squares) with standard piece designs. The conversion uses template matching with piece images generated from `python-chess`.
+This utility converts a cropped chessboard image into FEN notation. It expects the image to contain only the board (8x8 squares) with standard piece designs. The conversion uses computer vision to detect piece shapes.
 
 ## Usage
 
@@ -14,10 +14,17 @@ This utility converts a cropped chessboard image into FEN notation. It expects t
    pip install -r requirements.txt
    ```
 
-3. Run the converter on a board screenshot:
+3. Generate the piece contour templates:
+
+   ```bash
+   python generate_contours.py
+   ```
+   This will create a `contours.dat` file containing the shape data for the chess pieces. This step only needs to be run once.
+
+4. Run the converter on a board screenshot:
 
    ```bash
    python convert.py path/to/board.png
    ```
 
-The resulting FEN string is printed to stdout. The approach is naive and works best with clear board images and the default piece style.
+The resulting FEN string is printed to stdout.
