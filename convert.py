@@ -1,38 +1,34 @@
 """Convert a chessboard screenshot to FEN notation."""
 
 import argparse
+import pickle
 from typing import Dict
 
 import cv2
 import numpy as np
 import chess
-try:
-    import cairosvg
-except (OSError, ImportError) as e:  # pragma: no cover - environment dependent
-    raise RuntimeError(
-        "cairosvg requires the Cairo C library. Install it via your system package "
-        "manager (e.g. 'brew install cairo' on macOS or 'apt-get install libcairo2' "
-        "on Debian/Ubuntu)"
-    ) from e
 import chess.svg
 
-
+CONTOUR_FILE = "contours.dat"
 PIECE_SYMBOLS = ["P", "N", "B", "R", "Q", "K", "p", "n", "b", "r", "q", "k"]
 
 
-def generate_templates(square_size: int) -> Dict[str, np.ndarray]:
-    """Generate piece image templates scaled to the given square size."""
-    templates = {}
-    for symbol in PIECE_SYMBOLS:
-        svg = f'<svg width="{square_size}" height="{square_size}" viewBox="0 0 45 45">{chess.svg.PIECES[symbol]}</svg>'
-        png_bytes = cairosvg.svg2png(bytestring=svg.encode())
-        image = cv2.imdecode(np.frombuffer(png_bytes, np.uint8), cv2.IMREAD_GRAYSCALE)
-        templates[symbol] = image
-    return templates
+def load_contours() -> Dict[str, np.ndarray]:
+    """Load the pre-generated piece contours from a file."""
+    try:
+        with open(CONTOUR_FILE, "rb") as f:
+            return pickle.load(f)
+    except FileNotFoundError:
+        raise RuntimeError(
+            f"Contour file '{CONTOUR_FILE}' not found. "
+            "Please run generate_contours.py first to create it."
+        )
 
 
 def infer_castling_rights(board: chess.Board) -> None:
     """Infer and set castling rights based on king and rook positions."""
+    # This is a naive implementation and might not be correct for all positions,
+    # but it's what was in the original script.
     rights = []
     if board.piece_at(chess.E1) == chess.Piece.from_symbol("K"):
         if board.piece_at(chess.H1) == chess.Piece.from_symbol("R"):
@@ -48,32 +44,88 @@ def infer_castling_rights(board: chess.Board) -> None:
 
 
 def board_from_image(path: str) -> chess.Board:
+    """
+    Identifies pieces on a chessboard image using contour matching and returns a chess.Board object.
+    """
     img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
     if img is None:
-        raise FileNotFoundError(path)
+        raise FileNotFoundError(f"Could not read image from path: {path}")
+
     h, w = img.shape[:2]
     square_size = min(h // 8, w // 8)
-    templates = generate_templates(square_size)
 
+    template_contours = load_contours()
     board = chess.Board(None)
+
     for rank in range(8):
         for file in range(8):
             y0 = rank * square_size
             x0 = file * square_size
-            square_img = img[y0:y0 + square_size, x0:x0 + square_size]
-            best_symbol = None
-            best_score = 0.0
-            for symbol, templ in templates.items():
-                if square_img.shape[0] < templ.shape[0] or square_img.shape[1] < templ.shape[1]:
-                    continue
-                res = cv2.matchTemplate(square_img, templ, cv2.TM_CCOEFF_NORMED)
-                _, score, _, _ = cv2.minMaxLoc(res)
-                if score > best_score:
-                    best_score = score
-                    best_symbol = symbol
-            if best_symbol and best_score > 0.7:
-                square = chess.square(file, 7 - rank)
-                board.set_piece_at(square, chess.Piece.from_symbol(best_symbol))
+            # Add a small buffer to avoid cutting off pieces at the edge
+            y1 = y0 + square_size
+            x1 = x0 + square_size
+            square_img = img[y0:y1, x0:x1]
+
+            # Use adaptive thresholding to handle different square colors
+            # ADAPTIVE_THRESH_GAUSSIAN_C is often good for variable lighting
+            # Block size must be odd
+            block_size = max(square_size // 4, 5)
+            if block_size % 2 == 0:
+                block_size += 1
+
+            binary_square = cv2.adaptiveThreshold(
+                square_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                cv2.THRESH_BINARY_INV, block_size, 5
+            )
+
+            contours, _ = cv2.findContours(binary_square, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+
+            if not contours:
+                continue
+
+            # Filter out very small contours (noise) and find the most likely piece contour
+            best_match_score = float('inf')
+            best_match_symbol = None
+            largest_contour = None
+
+            # Find the largest contour, assuming it's the piece
+            found_contours = sorted(contours, key=cv2.contourArea, reverse=True)
+            if not found_contours:
+                continue
+
+            main_contour = found_contours[0]
+
+            # Ignore contours that are too small or too large to be a piece
+            area = cv2.contourArea(main_contour)
+            if area < (square_size * 0.1)**2 or area > (square_size * 0.9)**2:
+                continue
+
+            for piece_symbol, template_contour in template_contours.items():
+                # Compare the contour shape with the templates
+                score = cv2.matchShapes(main_contour, template_contour, cv2.CONTOURS_MATCH_I2, 0.0)
+                if score < best_match_score:
+                    best_match_score = score
+                    best_match_symbol = piece_symbol
+
+            # If the best match is good enough, determine the piece color
+            if best_match_score < 0.35:  # Relaxed threshold a bit
+                # Improved color detection: compare piece brightness to its background
+                piece_mask = np.zeros(square_img.shape, np.uint8)
+                cv2.drawContours(piece_mask, [main_contour], -1, 255, thickness=cv2.FILLED)
+                piece_mean = cv2.mean(square_img, mask=piece_mask)[0]
+
+                # Invert mask to get the background
+                bg_mask = cv2.bitwise_not(piece_mask)
+                bg_mean = cv2.mean(square_img, mask=bg_mask)[0]
+
+                # If piece is lighter than its background, it's white.
+                is_white = piece_mean > bg_mean
+
+                final_symbol = best_match_symbol.upper() if is_white else best_match_symbol.lower()
+
+                square_index = chess.square(file, 7 - rank)
+                board.set_piece_at(square_index, chess.Piece.from_symbol(final_symbol))
+
     infer_castling_rights(board)
     return board
 
