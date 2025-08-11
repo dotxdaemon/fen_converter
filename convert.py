@@ -2,19 +2,22 @@
 
 import argparse
 import pickle
-from typing import Dict
+from typing import Dict, TYPE_CHECKING
 
-import cv2
-import numpy as np
 import chess
 import chess.svg
+
+if TYPE_CHECKING:  # pragma: no cover - used only for type hints
+    import numpy as np
 
 CONTOUR_FILE = "contours.dat"
 PIECE_SYMBOLS = ["P", "N", "B", "R", "Q", "K", "p", "n", "b", "r", "q", "k"]
 
 
-def load_contours() -> Dict[str, np.ndarray]:
+def load_contours() -> Dict[str, "np.ndarray"]:
     """Load the pre-generated piece contours from a file."""
+    import numpy as np  # Imported lazily to avoid hard dependency
+
     try:
         with open(CONTOUR_FILE, "rb") as f:
             return pickle.load(f)
@@ -45,6 +48,9 @@ def board_from_image(path: str) -> chess.Board:
     """
     Identifies pieces on a chessboard image using contour matching and returns a chess.Board object.
     """
+    import cv2
+    import numpy as np
+
     img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
     if img is None:
         raise FileNotFoundError(f"Could not read image from path: {path}")
