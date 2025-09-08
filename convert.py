@@ -5,27 +5,43 @@ import pickle
 from typing import Dict, TYPE_CHECKING
 
 import chess
-import chess.svg
 
 if TYPE_CHECKING:  # pragma: no cover - used only for type hints
     import numpy as np
 
 CONTOUR_FILE = "contours.dat"
-PIECE_SYMBOLS = ["P", "N", "B", "R", "Q", "K", "p", "n", "b", "r", "q", "k"]
+REQUIRED_CONTOURS = ["P", "N", "B", "R", "Q", "K"]
 
 
 def load_contours() -> Dict[str, "np.ndarray"]:
-    """Load the pre-generated piece contours from a file."""
+    """Load the pre-generated piece contours from a file.
+
+    Provides clearer error messages when the file is missing or corrupted and
+    validates that the expected contour symbols are present.
+    """
     import numpy as np  # Imported lazily to avoid hard dependency
 
     try:
         with open(CONTOUR_FILE, "rb") as f:
-            return pickle.load(f)
-    except FileNotFoundError:
+            contours = pickle.load(f)
+    except FileNotFoundError as exc:
         raise RuntimeError(
             f"Contour file '{CONTOUR_FILE}' not found. "
             "Please run generate_contours.py first to create it."
+        ) from exc
+    except pickle.UnpicklingError as exc:
+        raise RuntimeError(
+            f"Contour file '{CONTOUR_FILE}' is corrupted. "
+            "Please regenerate it by running generate_contours.py."
+        ) from exc
+
+    if not isinstance(contours, dict) or not all(symbol in contours for symbol in REQUIRED_CONTOURS):
+        raise RuntimeError(
+            f"Invalid contour data in '{CONTOUR_FILE}'. "
+            "Please regenerate it by running generate_contours.py."
         )
+
+    return contours
 
 
 def infer_castling_rights(board: chess.Board) -> None:
