@@ -77,6 +77,7 @@ def load_templates() -> Tuple["np.ndarray", "np.ndarray"]:
         samples = samples.astype(np.float32, copy=False)
         samples = samples.reshape(samples.shape[0], -1)
         samples = _normalize_rows(samples)
+        labels = np.asarray(labels).astype(str)
         return samples, labels
 
     try:
