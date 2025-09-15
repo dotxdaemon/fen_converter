@@ -1,5 +1,4 @@
 import pickle
-import re
 from typing import Dict, List
 
 import cv2
@@ -29,25 +28,20 @@ def generate_contours() -> Dict[str, np.ndarray]:
     contours = {}
     print("Generating piece contours...")
     for symbol in UNIQUE_PIECE_TYPES:
-        # Generate a black piece on a white background SVG
-        piece_guts = chess.svg.PIECES[symbol]
-        cleaned_guts = re.sub(r'\s(fill|stroke|stroke-width)="[^"]*"', '', piece_guts)
-        styled_guts = cleaned_guts.replace('<g ', '<g fill="black" ', 1)
-
-        svg = (
-            f'<svg xmlns="http://www.w3.org/2000/svg" width="{IMAGE_SIZE}" '
-            f'height="{IMAGE_SIZE}" viewBox="0 0 45 45" '
-            f'style="background-color:white">{styled_guts}</svg>'
+        piece = chess.Piece.from_symbol(symbol.lower())
+        svg = chess.svg.piece(piece, size=IMAGE_SIZE)
+        png_bytes = cairosvg.svg2png(
+            bytestring=svg.encode("utf-8"),
+            background_color="white",
         )
 
-        png_bytes = cairosvg.svg2png(bytestring=svg.encode('utf-8'))
-
-        # Decode and convert to grayscale
         image = cv2.imdecode(np.frombuffer(png_bytes, np.uint8), cv2.IMREAD_GRAYSCALE)
 
         # Threshold to get a binary image. The piece is black (0), so we want to find it.
         # THRESH_BINARY_INV makes the piece white (255) and background black (0).
-        _, binary_image = cv2.threshold(image, 127, 255, cv2.THRESH_BINARY_INV)
+        _, binary_image = cv2.threshold(
+            image, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU
+        )
 
         # Find contours
         found_contours, _ = cv2.findContours(binary_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
