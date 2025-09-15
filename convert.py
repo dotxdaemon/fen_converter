@@ -2,7 +2,7 @@
 
 import argparse
 import pickle
-from typing import Dict, TYPE_CHECKING
+from typing import Dict, TYPE_CHECKING, Tuple
 
 import chess
 
@@ -11,6 +11,26 @@ if TYPE_CHECKING:  # pragma: no cover - used only for type hints
 
 CONTOUR_FILE = "contours.dat"
 REQUIRED_CONTOURS = ["P", "N", "B", "R", "Q", "K"]
+TEMPLATE_FILE = "piece_templates.npz"
+CLASSIFIER_IMAGE_SIZE = 64
+
+_TEMPLATES: Tuple["np.ndarray", "np.ndarray"] | None = None
+
+
+def _normalize_rows(arr: "np.ndarray") -> "np.ndarray":
+    """Normalize each row vector to have zero mean and unit variance."""
+
+    import numpy as np
+
+    arr = arr.astype(np.float32, copy=False)
+    rows = np.atleast_2d(arr)
+    means = rows.mean(axis=1, keepdims=True)
+    stds = rows.std(axis=1, keepdims=True)
+    stds = np.where(stds < 1e-6, 1.0, stds)
+    normalized = (rows - means) / stds
+    if arr.ndim == 1:
+        return normalized[0]
+    return normalized
 
 
 def load_contours() -> Dict[str, "np.ndarray"]:
@@ -44,6 +64,40 @@ def load_contours() -> Dict[str, "np.ndarray"]:
     return contours
 
 
+def load_templates() -> Tuple["np.ndarray", "np.ndarray"]:
+    """Load the per-square image samples and their labels."""
+
+    import numpy as np
+
+    global _TEMPLATES
+    if _TEMPLATES is not None:
+        return _TEMPLATES
+
+    def _prepare(samples: "np.ndarray", labels: "np.ndarray") -> Tuple["np.ndarray", "np.ndarray"]:
+        samples = samples.astype(np.float32, copy=False)
+        samples = samples.reshape(samples.shape[0], -1)
+        samples = _normalize_rows(samples)
+        return samples, labels
+
+    try:
+        with np.load(TEMPLATE_FILE) as data:
+            templates = _prepare(data["samples"], data["labels"])
+    except FileNotFoundError:
+        from piece_templates_data import load_default_templates
+
+        samples, labels = load_default_templates()
+        templates = _prepare(samples, labels)
+    except Exception as exc:  # pragma: no cover - defensive error handling
+        raise RuntimeError(
+            f"Unable to load template data from '{TEMPLATE_FILE}'. "
+            "Regenerate it with generate_templates.py or remove the file to"
+            " use the built-in defaults."
+        ) from exc
+
+    _TEMPLATES = templates
+    return _TEMPLATES
+
+
 def infer_castling_rights(board: chess.Board) -> None:
     """Infer and set castling rights based on king and rook positions."""
     rights = []
@@ -72,81 +126,68 @@ def board_from_image(path: str) -> chess.Board:
         raise FileNotFoundError(f"Could not read image from path: {path}")
 
     h, w = img.shape[:2]
-    square_size = min(h // 8, w // 8)
+    square_height = h / 8.0
+    square_width = w / 8.0
+    square_size = min(square_height, square_width)
 
-    template_contours = load_contours()
+    # Use rounded edges so that we cover the full board even if the
+    # resolution is not a perfect multiple of eight.
+    y_edges = [int(round(rank * square_height)) for rank in range(9)]
+    x_edges = [int(round(file * square_width)) for file in range(9)]
+
+    import numpy as np
+
+    samples, labels = load_templates()
+    empty_indices = [i for i, label in enumerate(labels) if label == '.']
+    empty_templates = samples[empty_indices] if empty_indices else None
     board = chess.Board(None)
 
     for rank in range(8):
         for file in range(8):
-            y0 = rank * square_size
-            x0 = file * square_size
-            y1 = y0 + square_size
-            x1 = x0 + square_size
+            y0 = y_edges[rank]
+            y1 = y_edges[rank + 1]
+            x0 = x_edges[file]
+            x1 = x_edges[file + 1]
+
+            if y1 <= y0 or x1 <= x0:
+                continue
+
             square_img = img[y0:y1, x0:x1]
 
-            # Shave off a few pixels to remove borders/annotations from the edge
-            border_margin = 4  # pixels
+            if square_img.size == 0:
+                continue
+
             h_sq, w_sq = square_img.shape
+            min_dim = min(h_sq, w_sq)
+            border_margin = max(1, int(round(min_dim * 0.05))) if min_dim else 0
             if h_sq > border_margin * 2 and w_sq > border_margin * 2:
                 square_img = square_img[border_margin:h_sq - border_margin, border_margin:w_sq - border_margin]
 
-            # Use adaptive thresholding to handle different square colors
-            block_size = max(square_img.shape[0] // 4, 5)
-            if block_size % 2 == 0:
-                block_size += 1
-
-            binary_square = cv2.adaptiveThreshold(
-                square_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                cv2.THRESH_BINARY_INV, block_size, 5
+            resized = cv2.resize(
+                square_img,
+                (CLASSIFIER_IMAGE_SIZE, CLASSIFIER_IMAGE_SIZE),
+                interpolation=cv2.INTER_AREA,
             )
 
-            contours, _ = cv2.findContours(binary_square, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+            feature = resized.astype(np.float32).reshape(1, -1)
+            feature = _normalize_rows(feature)
 
-            if not contours:
+            diffs = samples - feature
+            errors = np.mean(diffs * diffs, axis=1)
+            best_index = int(np.argmin(errors))
+            best_symbol = labels[best_index]
+            best_error = float(errors[best_index])
+
+            if best_symbol == '.':
                 continue
 
-            best_match_score = float('inf')
-            best_match_symbol = None
+            if empty_templates is not None:
+                empty_errors = np.mean((empty_templates - feature) ** 2, axis=1)
+                if float(empty_errors.min()) <= best_error * 1.05:
+                    continue
 
-            found_contours = sorted(contours, key=cv2.contourArea, reverse=True)
-            if not found_contours:
-                continue
-
-            main_contour = found_contours[0]
-
-            area = cv2.contourArea(main_contour)
-            min_area = (square_size * 0.1)**2
-            max_area = (square_size * 0.9)**2
-            if area < min_area or area > max_area:
-                continue
-
-            for piece_symbol, template_contour in template_contours.items():
-                score = cv2.matchShapes(main_contour, template_contour, cv2.CONTOURS_MATCH_I1, 0.0)
-                if score < best_match_score:
-                    best_match_score = score
-                    best_match_symbol = piece_symbol
-
-            if best_match_score < 0.3: # Tuned threshold
-                piece_mask = np.zeros(square_img.shape, np.uint8)
-                cv2.drawContours(piece_mask, [main_contour], -1, 255, thickness=cv2.FILLED)
-                piece_mean = cv2.mean(square_img, mask=piece_mask)[0]
-
-                bg_mask = cv2.bitwise_not(piece_mask)
-                # Avoid division by zero if mask is full
-                if cv2.countNonZero(bg_mask) == 0:
-                    # This happens on squares that are almost entirely covered by the piece.
-                    # Assume white on light squares, black on dark squares based on overall square brightness.
-                    bg_mean = cv2.mean(square_img)[0]
-                else:
-                    bg_mean = cv2.mean(square_img, mask=bg_mask)[0]
-
-                is_white = piece_mean > bg_mean
-
-                final_symbol = best_match_symbol.upper() if is_white else best_match_symbol.lower()
-
-                square_index = chess.square(file, 7 - rank)
-                board.set_piece_at(square_index, chess.Piece.from_symbol(final_symbol))
+            square_index = chess.square(file, 7 - rank)
+            board.set_piece_at(square_index, chess.Piece.from_symbol(best_symbol))
 
     infer_castling_rights(board)
     return board

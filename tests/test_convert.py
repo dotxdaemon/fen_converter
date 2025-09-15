@@ -2,11 +2,13 @@ import sys
 from pathlib import Path
 
 import chess
+import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import convert
 from convert import infer_castling_rights
 
 
@@ -18,3 +20,20 @@ def test_infer_castling_rights_start_position():
         board.set_piece_at(square, piece)
     infer_castling_rights(board)
     assert board.fen() == chess.STARTING_FEN
+
+
+def test_normalize_rows_handles_zero_variance():
+    """Normalization should not introduce NaNs when the input is constant."""
+    vec = np.zeros((1, 4), dtype=np.float32)
+    normalized = convert._normalize_rows(vec)
+    assert normalized.shape == vec.shape
+    assert np.allclose(normalized, 0.0)
+
+
+def test_load_templates_uses_embedded_defaults(monkeypatch, tmp_path):
+    """The converter should fall back to bundled template data."""
+    monkeypatch.setattr(convert, "TEMPLATE_FILE", str(tmp_path / "missing.npz"))
+    monkeypatch.setattr(convert, "_TEMPLATES", None)
+    samples, labels = convert.load_templates()
+    assert samples.shape[0] == labels.shape[0] > 0
+    assert samples.ndim == 2
