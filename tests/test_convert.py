@@ -62,3 +62,10 @@ def test_default_templates_have_two_knights(monkeypatch, tmp_path):
     _, labels = convert.load_templates()
     assert np.count_nonzero(labels == "N") == 2
     assert np.count_nonzero(labels == "n") == 2
+
+
+def test_board_from_image_matches_provided_screenshot(monkeypatch):
+    """The shared screenshot should convert to the expected FEN string."""
+    monkeypatch.setattr(convert, "_TEMPLATES", None)
+    board = convert.board_from_image(str(ROOT / "board.png"))
+    assert board.fen() == "r1bqkb1r/pppp1ppp/2n2n2/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1"
