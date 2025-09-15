@@ -37,3 +37,28 @@ def test_load_templates_uses_embedded_defaults(monkeypatch, tmp_path):
     samples, labels = convert.load_templates()
     assert samples.shape[0] == labels.shape[0] > 0
     assert samples.ndim == 2
+
+
+def test_load_templates_decodes_byte_labels(monkeypatch, tmp_path):
+    """Byte-encoded labels should be decoded to strings for classification."""
+    path = tmp_path / "custom_templates.npz"
+    samples = np.zeros((2, convert.CLASSIFIER_IMAGE_SIZE, convert.CLASSIFIER_IMAGE_SIZE), dtype=np.uint8)
+    labels = np.array([b"p", b"."], dtype="S1")
+    np.savez(path, samples=samples, labels=labels)
+
+    monkeypatch.setattr(convert, "TEMPLATE_FILE", str(path))
+    monkeypatch.setattr(convert, "_TEMPLATES", None)
+
+    _, loaded_labels = convert.load_templates()
+    assert loaded_labels.dtype.kind == "U"
+    assert isinstance(loaded_labels[0], str)
+
+
+def test_default_templates_have_two_knights(monkeypatch, tmp_path):
+    """Bundled templates should contain exactly two knights per side."""
+    monkeypatch.setattr(convert, "TEMPLATE_FILE", str(tmp_path / "missing.npz"))
+    monkeypatch.setattr(convert, "_TEMPLATES", None)
+
+    _, labels = convert.load_templates()
+    assert np.count_nonzero(labels == "N") == 2
+    assert np.count_nonzero(labels == "n") == 2

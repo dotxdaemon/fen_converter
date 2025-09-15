@@ -18,7 +18,7 @@ This utility converts a cropped chessboard image into FEN notation. It expects t
    to override the built-in defaults:
 
    ```bash
-   python generate_templates.py board.png "r1bqkb1r/pppp1ppp/2n2n2/1B2p3/4P3/5N2/PPPP1PPP/RNBQK1NR w KQkq - 4 4"
+   python generate_templates.py board.png "r1bqkb1r/pppp1ppp/2n2n2/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4"
    ```
    This will create a `piece_templates.npz` file containing reference samples for each piece. Place the generated file alongside
    `convert.py` to make the converter use your custom data. Replace the arguments with an image and FEN that match the piece style
