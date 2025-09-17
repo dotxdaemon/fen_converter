@@ -492,7 +492,9 @@ def board_from_image(path: str) -> chess.Board:
             best_symbol, best_error = prediction.candidates[0]
             empty_error = prediction.error_for('.')
 
-            if best_symbol != '.' and (empty_error == float('inf') or empty_error > best_error * 1.05):
+            if best_symbol != '.' and (
+                empty_error == float("inf") or best_error < empty_error
+            ):
                 board.set_piece_at(square_index, chess.Piece.from_symbol(best_symbol))
 
     ensure_legal_board(board, predictions)
