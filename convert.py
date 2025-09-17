@@ -248,7 +248,7 @@ def _add_high_confidence_pieces(
     board: chess.Board,
     predictions: Dict[chess.Square, SquarePrediction],
     *,
-    min_improvement: float = 0.15,
+    min_improvement: float = 0.0,
 ) -> bool:
     """Insert pieces on empty squares that strongly prefer non-empty candidates."""
 
@@ -547,7 +547,7 @@ def board_from_image(path: str) -> chess.Board:
             best_symbol, best_error = prediction.candidates[0]
             empty_error = prediction.error_for('.')
 
-            if best_symbol != '.' and (empty_error == float('inf') or empty_error > best_error * 1.05):
+            if best_symbol != '.':
                 board.set_piece_at(square_index, chess.Piece.from_symbol(best_symbol))
 
     ensure_legal_board(board, predictions)

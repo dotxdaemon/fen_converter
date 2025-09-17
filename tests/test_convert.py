@@ -111,6 +111,7 @@ def test_high_confidence_additions_restore_pieces():
         chess.E8: _prediction(chess.E8, [("k", 0.02), (".", 0.5)]),
         chess.E4: _prediction(chess.E4, [(".", 0.9), ("B", 0.1), ("N", 0.3)]),
         chess.D4: _prediction(chess.D4, [(".", 0.15), ("q", 0.35)]),
+        chess.C4: _prediction(chess.C4, [(".", 0.31), ("N", 0.30), ("B", 0.5)]),
     }
 
     added = convert._add_high_confidence_pieces(board, predictions)
@@ -118,4 +119,6 @@ def test_high_confidence_additions_restore_pieces():
     assert added is True
     piece = board.piece_at(chess.E4)
     assert piece is not None and piece.symbol() == "B"
+    slight_piece = board.piece_at(chess.C4)
+    assert slight_piece is not None and slight_piece.symbol() == "N"
     assert board.piece_at(chess.D4) is None
