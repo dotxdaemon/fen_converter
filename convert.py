@@ -367,6 +367,34 @@ def ensure_legal_board(
         )
 
 
+def _split_edges(length: int, parts: int = 8) -> list[int]:
+    """Return strictly increasing integer edges that partition ``length`` pixels."""
+
+    if parts <= 0:
+        raise ValueError("parts must be positive")
+    if length < parts:
+        raise ValueError(
+            f"Cannot divide length {length} into {parts} positive-sized segments"
+        )
+
+    step = length / parts
+    edges = [0]
+    for idx in range(1, parts):
+        target = int(round(step * idx))
+        min_edge = edges[-1] + 1
+        max_edge = length - (parts - idx)
+        if target < min_edge:
+            edge = min_edge
+        elif target > max_edge:
+            edge = max_edge
+        else:
+            edge = target
+        edges.append(edge)
+
+    edges.append(length)
+    return edges
+
+
 def _normalize_rows(arr: "np.ndarray") -> "np.ndarray":
     """Normalize each row vector to have zero mean and unit variance."""
 
@@ -477,13 +505,8 @@ def board_from_image(path: str) -> chess.Board:
         raise FileNotFoundError(f"Could not read image from path: {path}")
 
     h, w = img.shape[:2]
-    square_height = h / 8.0
-    square_width = w / 8.0
-
-    # Use rounded edges so that we cover the full board even if the
-    # resolution is not a perfect multiple of eight.
-    y_edges = [int(round(rank * square_height)) for rank in range(9)]
-    x_edges = [int(round(file * square_width)) for file in range(9)]
+    y_edges = _split_edges(h)
+    x_edges = _split_edges(w)
 
     samples, labels = load_templates()
     label_to_indices: Dict[str, "np.ndarray"] = {}

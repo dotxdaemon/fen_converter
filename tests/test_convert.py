@@ -3,6 +3,7 @@ from pathlib import Path
 
 import chess
 import numpy as np
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -122,3 +123,22 @@ def test_high_confidence_additions_restore_pieces():
     slight_piece = board.piece_at(chess.C4)
     assert slight_piece is not None and slight_piece.symbol() == "N"
     assert board.piece_at(chess.D4) is None
+
+
+@pytest.mark.parametrize("length", [321, 401, 512])
+def test_split_edges_cover_dimension(length):
+    """Board slicing should produce strictly increasing edges that cover the image."""
+
+    edges = convert._split_edges(length)
+    assert edges[0] == 0
+    assert edges[-1] == length
+    deltas = [b - a for a, b in zip(edges, edges[1:])]
+    assert all(delta > 0 for delta in deltas)
+    assert sum(deltas) == length
+
+
+def test_split_edges_rejects_too_small_images():
+    """Images smaller than the number of required squares are rejected."""
+
+    with pytest.raises(ValueError):
+        convert._split_edges(7)
