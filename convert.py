@@ -2,7 +2,8 @@
 
 import argparse
 import pickle
-from typing import Dict, TYPE_CHECKING, Tuple
+from dataclasses import dataclass
+from typing import Dict, Iterable, TYPE_CHECKING, Tuple
 
 import chess
 
@@ -15,6 +16,355 @@ TEMPLATE_FILE = "piece_templates.npz"
 CLASSIFIER_IMAGE_SIZE = 64
 
 _TEMPLATES: Tuple["np.ndarray", "np.ndarray"] | None = None
+
+
+@dataclass(frozen=True)
+class SquarePrediction:
+    """Stores the classification candidates for a board square."""
+
+    square: chess.Square
+    candidates: Tuple[Tuple[str, float], ...]
+
+    def error_for(self, symbol: str) -> float:
+        """Return the matching error for a particular piece symbol."""
+
+        for candidate_symbol, error in self.candidates:
+            if candidate_symbol == symbol:
+                return error
+        return float("inf")
+
+    def best_alternative(self, forbidden: Iterable[str] = ()) -> Tuple[str, float]:
+        """Return the lowest-error candidate not in ``forbidden``."""
+
+        forbidden_set = set(forbidden)
+        for candidate_symbol, error in self.candidates:
+            if candidate_symbol in forbidden_set:
+                continue
+            return candidate_symbol, error
+        return ".", float("inf")
+
+    def best_piece(self) -> Tuple[str | None, float]:
+        """Return the lowest-error non-empty candidate for the square."""
+
+        for symbol, error in self.candidates:
+            if symbol != ".":
+                return symbol, error
+        return None, float("inf")
+
+
+def _replace_with_best_alternative(
+    board: chess.Board, prediction: SquarePrediction, forbidden: Iterable[str] = ()
+) -> bool:
+    """Reassign a square to the best alternative piece that is not forbidden."""
+
+    symbol, _ = prediction.best_alternative(forbidden)
+    if symbol == ".":
+        board.remove_piece_at(prediction.square)
+    else:
+        board.set_piece_at(prediction.square, chess.Piece.from_symbol(symbol))
+    return True
+
+
+def _force_piece(
+    board: chess.Board, predictions: Dict[chess.Square, SquarePrediction], symbol: str
+) -> bool:
+    """Ensure that a specific piece symbol is present on the board."""
+
+    piece = chess.Piece.from_symbol(symbol)
+    current_square = board.king(piece.color)
+    if current_square is not None:
+        return False
+
+    best_square: chess.Square | None = None
+    best_error = float("inf")
+
+    for square, prediction in predictions.items():
+        occupant = board.piece_at(square)
+        if occupant is not None and occupant.symbol() in {"K", "k"} and occupant.symbol() != symbol:
+            continue
+        err = prediction.error_for(symbol)
+        if err < best_error:
+            best_error = err
+            best_square = square
+
+    if best_square is None or best_error == float("inf"):
+        # Fall back to the square whose best candidate has the lowest error.
+        for square, prediction in predictions.items():
+            if not prediction.candidates:
+                continue
+            occupant = board.piece_at(square)
+            if occupant is not None and occupant.symbol() in {"K", "k"} and occupant.symbol() != symbol:
+                continue
+            candidate_symbol, candidate_error = prediction.candidates[0]
+            if candidate_symbol in {"K", "k"} and candidate_symbol != symbol:
+                continue
+            if candidate_error < best_error:
+                best_error = candidate_error
+                best_square = square
+
+    if best_square is None:
+        return False
+
+    board.set_piece_at(best_square, piece)
+    return True
+
+
+def _prune_extra_kings(
+    board: chess.Board, predictions: Dict[chess.Square, SquarePrediction]
+) -> bool:
+    """Remove surplus kings, keeping the most confident ones."""
+
+    changed = False
+    for color, symbol in ((chess.WHITE, "K"), (chess.BLACK, "k")):
+        kings = list(board.pieces(chess.KING, color))
+        if len(kings) <= 1:
+            continue
+
+        keep_square = min(
+            kings,
+            key=lambda sq: predictions.get(sq, SquarePrediction(sq, tuple())).error_for(symbol),
+        )
+
+        for square in kings:
+            if square == keep_square:
+                continue
+            prediction = predictions.get(square)
+            if prediction is None:
+                board.remove_piece_at(square)
+            else:
+                _replace_with_best_alternative(
+                    board, prediction, forbidden={symbol, "K", "k"}
+                )
+            changed = True
+
+    return changed
+
+
+def _remove_worst_piece(
+    board: chess.Board,
+    predictions: Dict[chess.Square, SquarePrediction],
+    *,
+    color: chess.Color | None = None,
+    symbol: str | None = None,
+) -> bool:
+    """Downgrade the piece with the highest matching error for the given filter."""
+
+    worst_square: chess.Square | None = None
+    worst_error = -1.0
+
+    for square, prediction in predictions.items():
+        piece = board.piece_at(square)
+        if piece is None:
+            continue
+
+        piece_symbol = piece.symbol()
+        if symbol is not None and piece_symbol != symbol:
+            continue
+        if color is not None and piece.color != color:
+            continue
+        if piece_symbol in {"K", "k"} and symbol not in {"K", "k"}:
+            continue
+
+        error = prediction.error_for(piece_symbol)
+        if error == float("inf") and prediction.candidates:
+            error = prediction.candidates[-1][1]
+
+        if error > worst_error:
+            worst_error = error
+            worst_square = square
+
+    if worst_square is None:
+        return False
+
+    piece_symbol = board.piece_at(worst_square).symbol()  # type: ignore[union-attr]
+    forbidden = {piece_symbol}
+    if piece_symbol in {"K", "k"}:
+        forbidden.update({"K", "k"})
+
+    prediction = predictions.get(worst_square)
+    if prediction is None:
+        board.remove_piece_at(worst_square)
+        return True
+
+    return _replace_with_best_alternative(board, prediction, forbidden)
+
+
+def _fix_backrank_pawns(
+    board: chess.Board, predictions: Dict[chess.Square, SquarePrediction]
+) -> bool:
+    """Convert pawns on the first or eighth rank to plausible alternatives."""
+
+    changed = False
+    for color, pawn_symbol in ((chess.WHITE, "P"), (chess.BLACK, "p")):
+        for square in list(board.pieces(chess.PAWN, color)):
+            rank = chess.square_rank(square)
+            if rank not in (0, 7):
+                continue
+
+            prediction = predictions.get(square)
+            if prediction is None:
+                board.remove_piece_at(square)
+            else:
+                _replace_with_best_alternative(board, prediction, forbidden={pawn_symbol})
+            changed = True
+
+    return changed
+
+
+def _resolve_check_conflicts(
+    board: chess.Board, predictions: Dict[chess.Square, SquarePrediction]
+) -> bool:
+    """Address impossible check scenarios by adjusting low-confidence pieces."""
+
+    checker_squares = list(board.checkers())
+    if not checker_squares:
+        return False
+
+    def _score(square: chess.Square) -> float:
+        piece = board.piece_at(square)
+        if piece is None:
+            return float("inf")
+        prediction = predictions.get(square)
+        if prediction is None:
+            return float("inf")
+        return prediction.error_for(piece.symbol())
+
+    worst_square = max(checker_squares, key=_score)
+    prediction = predictions.get(worst_square)
+    if prediction is None:
+        board.remove_piece_at(worst_square)
+        return True
+
+    symbol = board.piece_at(worst_square).symbol()  # type: ignore[union-attr]
+    forbidden = {symbol}
+    if symbol in {"K", "k"}:
+        forbidden.update({"K", "k"})
+
+    _replace_with_best_alternative(board, prediction, forbidden)
+    return True
+
+
+def _add_high_confidence_pieces(
+    board: chess.Board,
+    predictions: Dict[chess.Square, SquarePrediction],
+    *,
+    min_improvement: float = 0.15,
+) -> bool:
+    """Insert pieces on empty squares that strongly prefer non-empty candidates."""
+
+    candidates: list[tuple[float, chess.Square, str]] = []
+    for square, prediction in predictions.items():
+        if board.piece_at(square) is not None:
+            continue
+
+        symbol, piece_error = prediction.best_piece()
+        if symbol is None:
+            continue
+
+        empty_error = prediction.error_for(".")
+        if empty_error == float("inf"):
+            improvement = float("inf")
+        else:
+            improvement = empty_error - piece_error
+
+        candidates.append((improvement, square, symbol))
+
+    candidates.sort(reverse=True, key=lambda item: item[0])
+
+    changed = False
+    for improvement, square, symbol in candidates:
+        if improvement <= min_improvement:
+            break
+
+        if symbol in {"K", "k"}:
+            king_square = board.king(chess.WHITE if symbol == "K" else chess.BLACK)
+            if king_square is not None:
+                continue
+
+        board.set_piece_at(square, chess.Piece.from_symbol(symbol))
+        if board.status() != chess.Status.VALID:
+            board.remove_piece_at(square)
+            continue
+
+        changed = True
+
+    return changed
+
+
+def ensure_legal_board(
+    board: chess.Board, predictions: Dict[chess.Square, SquarePrediction]
+) -> None:
+    """Mutate ``board`` so that it represents a legal chess position."""
+
+    for _ in range(128):
+        status = board.status()
+        if status == chess.Status.VALID:
+            break
+
+        if status & chess.Status.BAD_CASTLING_RIGHTS:
+            infer_castling_rights(board)
+            continue
+
+        if status & chess.Status.INVALID_EP_SQUARE:
+            board.ep_square = None
+            continue
+
+        if status & chess.Status.NO_WHITE_KING:
+            if _force_piece(board, predictions, "K"):
+                continue
+
+        if status & chess.Status.NO_BLACK_KING:
+            if _force_piece(board, predictions, "k"):
+                continue
+
+        if status & chess.Status.TOO_MANY_KINGS:
+            if _prune_extra_kings(board, predictions):
+                continue
+
+        if status & chess.Status.TOO_MANY_WHITE_PAWNS:
+            if _remove_worst_piece(board, predictions, symbol="P"):
+                continue
+
+        if status & chess.Status.TOO_MANY_BLACK_PAWNS:
+            if _remove_worst_piece(board, predictions, symbol="p"):
+                continue
+
+        if status & chess.Status.PAWNS_ON_BACKRANK:
+            if _fix_backrank_pawns(board, predictions):
+                continue
+
+        if status & chess.Status.TOO_MANY_WHITE_PIECES:
+            if _remove_worst_piece(board, predictions, color=chess.WHITE):
+                continue
+
+        if status & chess.Status.TOO_MANY_BLACK_PIECES:
+            if _remove_worst_piece(board, predictions, color=chess.BLACK):
+                continue
+
+        if status & (
+            chess.Status.OPPOSITE_CHECK
+            | chess.Status.TOO_MANY_CHECKERS
+            | chess.Status.IMPOSSIBLE_CHECK
+        ):
+            if _resolve_check_conflicts(board, predictions):
+                continue
+
+        if status & chess.Status.EMPTY:
+            changed = False
+            changed |= _force_piece(board, predictions, "K")
+            changed |= _force_piece(board, predictions, "k")
+            if changed:
+                continue
+
+        if not _remove_worst_piece(board, predictions):
+            break
+
+    infer_castling_rights(board)
+
+    if board.status() != chess.Status.VALID:
+        raise RuntimeError(
+            "Unable to infer a legal chess position from the provided image"
+        )
 
 
 def _normalize_rows(arr: "np.ndarray") -> "np.ndarray":
@@ -139,9 +489,12 @@ def board_from_image(path: str) -> chess.Board:
     import numpy as np
 
     samples, labels = load_templates()
-    empty_indices = [i for i, label in enumerate(labels) if label == '.']
-    empty_templates = samples[empty_indices] if empty_indices else None
+    label_to_indices: Dict[str, "np.ndarray"] = {}
+    for symbol in np.unique(labels):
+        label_to_indices[str(symbol)] = np.flatnonzero(labels == symbol)
+
     board = chess.Board(None)
+    predictions: Dict[chess.Square, SquarePrediction] = {}
 
     for rank in range(8):
         for file in range(8):
@@ -175,22 +528,31 @@ def board_from_image(path: str) -> chess.Board:
 
             diffs = samples - feature
             errors = np.mean(diffs * diffs, axis=1)
-            best_index = int(np.argmin(errors))
-            best_symbol = labels[best_index]
-            best_error = float(errors[best_index])
 
-            if best_symbol == '.':
-                continue
-
-            if empty_templates is not None:
-                empty_errors = np.mean((empty_templates - feature) ** 2, axis=1)
-                if float(empty_errors.min()) <= best_error * 1.05:
+            symbol_errors = []
+            for symbol, indices in label_to_indices.items():
+                if indices.size == 0:
                     continue
+                symbol_errors.append((symbol, float(errors[indices].min())))
 
             square_index = chess.square(file, 7 - rank)
-            board.set_piece_at(square_index, chess.Piece.from_symbol(best_symbol))
+            if not symbol_errors:
+                predictions[square_index] = SquarePrediction(square_index, tuple())
+                continue
 
-    infer_castling_rights(board)
+            symbol_errors.sort(key=lambda item: item[1])
+            prediction = SquarePrediction(square_index, tuple(symbol_errors))
+            predictions[square_index] = prediction
+
+            best_symbol, best_error = prediction.candidates[0]
+            empty_error = prediction.error_for('.')
+
+            if best_symbol != '.' and (empty_error == float('inf') or empty_error > best_error * 1.05):
+                board.set_piece_at(square_index, chess.Piece.from_symbol(best_symbol))
+
+    ensure_legal_board(board, predictions)
+    if _add_high_confidence_pieces(board, predictions):
+        ensure_legal_board(board, predictions)
     return board
 
 
