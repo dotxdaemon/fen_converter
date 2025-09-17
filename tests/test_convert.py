@@ -93,3 +93,14 @@ def test_ensure_legal_board_removes_backrank_pawns():
     assert board.piece_at(chess.A8) is None
     assert board.king(chess.WHITE) == chess.E1
     assert board.king(chess.BLACK) == chess.E8
+
+
+def test_board_from_image_detects_complete_position():
+    """The converter should not drop real pieces when they edge out emptiness."""
+
+    board = convert.board_from_image(str(ROOT / "board.png"))
+
+    assert (
+        board.fen()
+        == "r1bqkb1r/pppp1ppp/2n2n2/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1"
+    )
