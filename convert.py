@@ -479,14 +479,11 @@ def board_from_image(path: str) -> chess.Board:
     h, w = img.shape[:2]
     square_height = h / 8.0
     square_width = w / 8.0
-    square_size = min(square_height, square_width)
 
     # Use rounded edges so that we cover the full board even if the
     # resolution is not a perfect multiple of eight.
     y_edges = [int(round(rank * square_height)) for rank in range(9)]
     x_edges = [int(round(file * square_width)) for file in range(9)]
-
-    import numpy as np
 
     samples, labels = load_templates()
     label_to_indices: Dict[str, "np.ndarray"] = {}
