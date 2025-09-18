@@ -3,6 +3,7 @@
 import argparse
 import pickle
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, Iterable, TYPE_CHECKING, Tuple
 
 import chess
@@ -10,9 +11,10 @@ import chess
 if TYPE_CHECKING:  # pragma: no cover - used only for type hints
     import numpy as np
 
-CONTOUR_FILE = "contours.dat"
+MODULE_DIR = Path(__file__).resolve().parent
+CONTOUR_FILE = MODULE_DIR / "contours.dat"
 REQUIRED_CONTOURS = ["P", "N", "B", "R", "Q", "K"]
-TEMPLATE_FILE = "piece_templates.npz"
+TEMPLATE_FILE = MODULE_DIR / "piece_templates.npz"
 CLASSIFIER_IMAGE_SIZE = 64
 
 _TEMPLATES: Tuple["np.ndarray", "np.ndarray"] | None = None
@@ -336,23 +338,25 @@ def load_contours() -> Dict[str, "np.ndarray"]:
     """
     import numpy as np  # Imported lazily to avoid hard dependency
 
+    path = CONTOUR_FILE
+
     try:
-        with open(CONTOUR_FILE, "rb") as f:
+        with open(path, "rb") as f:
             contours = pickle.load(f)
     except FileNotFoundError as exc:
         raise RuntimeError(
-            f"Contour file '{CONTOUR_FILE}' not found. "
+            f"Contour file '{path}' not found. "
             "Please run generate_contours.py first to create it."
         ) from exc
     except pickle.UnpicklingError as exc:
         raise RuntimeError(
-            f"Contour file '{CONTOUR_FILE}' is corrupted. "
+            f"Contour file '{path}' is corrupted. "
             "Please regenerate it by running generate_contours.py."
         ) from exc
 
     if not isinstance(contours, dict) or not all(symbol in contours for symbol in REQUIRED_CONTOURS):
         raise RuntimeError(
-            f"Invalid contour data in '{CONTOUR_FILE}'. "
+            f"Invalid contour data in '{path}'. "
             "Please regenerate it by running generate_contours.py."
         )
 
@@ -375,8 +379,10 @@ def load_templates() -> Tuple["np.ndarray", "np.ndarray"]:
         labels = np.asarray(labels).astype(str)
         return samples, labels
 
+    path = TEMPLATE_FILE
+
     try:
-        with np.load(TEMPLATE_FILE) as data:
+        with np.load(path) as data:
             templates = _prepare(data["samples"], data["labels"])
     except FileNotFoundError:
         from piece_templates_data import load_default_templates
@@ -385,7 +391,7 @@ def load_templates() -> Tuple["np.ndarray", "np.ndarray"]:
         templates = _prepare(samples, labels)
     except Exception as exc:  # pragma: no cover - defensive error handling
         raise RuntimeError(
-            f"Unable to load template data from '{TEMPLATE_FILE}'. "
+            f"Unable to load template data from '{path}'. "
             "Regenerate it with generate_templates.py or remove the file to"
             " use the built-in defaults."
         ) from exc
