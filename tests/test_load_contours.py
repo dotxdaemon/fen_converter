@@ -31,3 +31,28 @@ def test_load_contours_invalid_data(monkeypatch, tmp_path):
     monkeypatch.setattr(convert, "CONTOUR_FILE", str(invalid))
     with pytest.raises(RuntimeError):
         convert.load_contours()
+
+
+def test_load_contours_uses_module_directory(monkeypatch, tmp_path):
+    module_dir = Path(convert.__file__).resolve().parent
+    contour_path = module_dir / "contours_test.dat"
+    contour_data = {
+        symbol: np.full((2, 2), idx, dtype=np.uint8)
+        for idx, symbol in enumerate(convert.REQUIRED_CONTOURS)
+    }
+
+    with open(contour_path, "wb") as f:
+        pickle.dump(contour_data, f)
+
+    monkeypatch.setattr(convert, "CONTOUR_FILE", contour_path)
+    monkeypatch.chdir(tmp_path)
+
+    try:
+        loaded = convert.load_contours()
+    finally:
+        if contour_path.exists():
+            contour_path.unlink()
+
+    assert set(loaded) == set(contour_data)
+    for key, expected in contour_data.items():
+        assert np.array_equal(loaded[key], expected)
