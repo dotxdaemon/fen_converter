@@ -17,7 +17,7 @@ REQUIRED_CONTOURS = ["P", "N", "B", "R", "Q", "K"]
 TEMPLATE_FILE = MODULE_DIR / "piece_templates.npz"
 CLASSIFIER_IMAGE_SIZE = 64
 
-_TEMPLATES: Tuple["np.ndarray", "np.ndarray"] | None = None
+_TEMPLATE_CACHE: Dict[Path | None, Tuple["np.ndarray", "np.ndarray"]] = {}
 
 
 @dataclass(frozen=True)
@@ -363,14 +363,12 @@ def load_contours() -> Dict[str, "np.ndarray"]:
     return contours
 
 
-def load_templates() -> Tuple["np.ndarray", "np.ndarray"]:
+def load_templates(path: str | Path | None = None) -> Tuple["np.ndarray", "np.ndarray"]:
     """Load the per-square image samples and their labels."""
 
     import numpy as np
 
-    global _TEMPLATES
-    if _TEMPLATES is not None:
-        return _TEMPLATES
+    global _TEMPLATE_CACHE
 
     def _prepare(samples: "np.ndarray", labels: "np.ndarray") -> Tuple["np.ndarray", "np.ndarray"]:
         samples = samples.astype(np.float32, copy=False)
@@ -379,25 +377,40 @@ def load_templates() -> Tuple["np.ndarray", "np.ndarray"]:
         labels = np.asarray(labels).astype(str)
         return samples, labels
 
-    path = TEMPLATE_FILE
+    template_path = Path(path) if path is not None else Path(TEMPLATE_FILE)
+    resolved_path = template_path.resolve(strict=False)
+
+    cached = _TEMPLATE_CACHE.get(resolved_path)
+    if cached is not None:
+        return cached
+    if path is None:
+        builtin_cached = _TEMPLATE_CACHE.get(None)
+        if builtin_cached is not None:
+            _TEMPLATE_CACHE[resolved_path] = builtin_cached
+            return builtin_cached
 
     try:
-        with np.load(path) as data:
+        with np.load(template_path) as data:
             templates = _prepare(data["samples"], data["labels"])
     except FileNotFoundError:
+        if path is not None:
+            raise
         from piece_templates_data import load_default_templates
 
         samples, labels = load_default_templates()
         templates = _prepare(samples, labels)
+        _TEMPLATE_CACHE[None] = templates
+        _TEMPLATE_CACHE[resolved_path] = templates
+        return templates
     except Exception as exc:  # pragma: no cover - defensive error handling
         raise RuntimeError(
-            f"Unable to load template data from '{path}'. "
+            f"Unable to load template data from '{template_path}'. "
             "Regenerate it with generate_templates.py or remove the file to"
             " use the built-in defaults."
         ) from exc
 
-    _TEMPLATES = templates
-    return _TEMPLATES
+    _TEMPLATE_CACHE[resolved_path] = templates
+    return templates
 
 
 def infer_castling_rights(board: chess.Board) -> None:
@@ -416,7 +429,7 @@ def infer_castling_rights(board: chess.Board) -> None:
     board.set_castling_fen("".join(rights) or "-")
 
 
-def board_from_image(path: str) -> chess.Board:
+def board_from_image(path: str, templates_path: str | Path | None = None) -> chess.Board:
     """
     Identifies pieces on a chessboard image using contour matching and returns a chess.Board object.
     """
@@ -439,7 +452,7 @@ def board_from_image(path: str) -> chess.Board:
 
     import numpy as np
 
-    samples, labels = load_templates()
+    samples, labels = load_templates(templates_path)
     label_to_indices: Dict[str, "np.ndarray"] = {}
     for symbol in np.unique(labels):
         label_to_indices[str(symbol)] = np.flatnonzero(labels == symbol)
@@ -510,8 +523,22 @@ def board_from_image(path: str) -> chess.Board:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Convert a chessboard screenshot to FEN")
     parser.add_argument("image", help="Path to image containing the board cropped to 8x8 squares")
+    parser.add_argument(
+        "--templates",
+        help=(
+            "Optional path to a .npz archive containing piece templates. "
+            "Defaults to the bundled Chess.com set when available."
+        ),
+    )
     args = parser.parse_args()
-    board = board_from_image(args.image)
+    templates_path: Path | None
+    if args.templates:
+        templates_path = Path(args.templates)
+    else:
+        chesscom_templates = MODULE_DIR / "piece_templates_chesscom.npz"
+        templates_path = chesscom_templates if chesscom_templates.exists() else None
+
+    board = board_from_image(args.image, templates_path)
     print(board.fen())
 
 

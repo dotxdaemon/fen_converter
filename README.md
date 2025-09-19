@@ -21,13 +21,20 @@ This utility converts a cropped chessboard image into FEN notation. It expects t
    ```
    This will create a `piece_templates.npz` file containing reference samples for each piece. Place the generated file alongside `convert.py` to make the converter use your custom data. Replace the arguments with an image and FEN that match the piece style you want to recognise.
 
-4. Run the converter on a board screenshot:
+4. Run the converter on a board screenshot. If a `piece_templates_chesscom.npz`
+   archive sits alongside `convert.py`, the command-line tool will automatically
+   use it; otherwise the bundled default templates are loaded. You can override
+   the selection explicitly with the `--templates` option:
 
    ```bash
    python convert.py path/to/board.png
+   python convert.py chess.png --templates piece_templates_chesscom.npz
    ```
 
-   The resulting FEN string is printed to stdout.
+   The resulting FEN string is printed to stdout. Supplying the Chess.com
+   template archive (either explicitly or via auto-detection) lets the standard
+   converter recognise Chess.com-style piece sets without needing the enhanced
+   `fen_fix.py` workflow.
 
 ## Using the enhanced converter on full screenshots
 
