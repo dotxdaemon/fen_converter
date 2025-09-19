@@ -16,7 +16,7 @@ def test_load_templates_uses_module_directory(monkeypatch, tmp_path):
     np.savez(template_path, samples=samples, labels=labels)
 
     monkeypatch.setattr(convert, "TEMPLATE_FILE", template_path)
-    monkeypatch.setattr(convert, "_TEMPLATES", None)
+    monkeypatch.setattr(convert, "_TEMPLATE_CACHE", {})
     monkeypatch.chdir(tmp_path)
 
     try:
