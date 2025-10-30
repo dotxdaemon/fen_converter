@@ -77,19 +77,19 @@ def label_squares(
             print(ascii_art)
             print(f"Suggestion: {suggestion.symbol!r} ({suggestion.reason})")
             entered = input(
-                "Enter piece (KQRBNP for white, kqrbnp for black, '.' empty, 'b' back, 'q' quit): "
+                "Enter piece (KQRBNP for white, kqrbnp for black, '.' empty, 'back' undo, 'q' quit): "
             ).strip()
-            if entered.lower() == "q":
+            lower_entered = entered.lower()
+            if entered in _VALID_SYMBOLS:
+                symbol = entered
+            elif lower_entered == "q":
                 raise KeyboardInterrupt("Labeling aborted by user")
-            if entered.lower() == "b":
+            elif lower_entered in {"back", "undo", "u"}:
                 if index > 0:
                     index -= 1
                 continue
-            if entered:
-                if entered not in _VALID_SYMBOLS:
-                    print(f"Invalid symbol {entered!r}, using suggestion {symbol!r}.")
-                else:
-                    symbol = entered
+            elif entered:
+                print(f"Invalid symbol {entered!r}, using suggestion {symbol!r}.")
 
         labels[index] = SquareLabel(square=square_name, symbol=symbol, suggestion=suggestion)
         index += 1
