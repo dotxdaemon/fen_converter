@@ -1,51 +1,65 @@
-# Chess FEN Converter
+# fen_converter
 
-This utility converts a cropped chessboard image into FEN notation. It expects the image to contain only the board (8x8 squares) with standard piece designs. The conversion uses computer vision to detect piece shapes.
+A lightweight command-line tool for turning a chessboard screenshot into a FEN (Forsyth–Edwards Notation) record. The workflow detects the board automatically and then walks you through each square so that the final FEN is guaranteed to be correct.
+
+![Example screenshot](examples/diagram.png)
+
+## Features
+
+- Automatic chessboard detection with perspective correction using OpenCV.
+- Square-by-square image slicing and ASCII previews for reliable manual verification.
+- A quick heuristic classifier that pre-fills whether a square is empty and guesses the piece colour, saving time during review.
+- Generates a standards-compliant FEN string that can optionally be written to a file.
+
+## Installation
+
+Create and activate a virtual environment and install the dependencies:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install -e .
+```
 
 ## Usage
 
-1. Install the Cairo graphics library (required by `cairosvg`):
-   - macOS: `brew install cairo`
-   - Debian/Ubuntu: `sudo apt-get install libcairo2`
-
-2. Install Python dependencies:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. (Optional) Generate piece templates from a labelled board image if you want to override the built-in defaults:
-
-   ```bash
-   python generate_templates.py board.png "r1bqkb1r/pppp1ppp/2n2n2/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4"
-   ```
-   This will create a `piece_templates.npz` file containing reference samples for each piece. Place the generated file alongside `convert.py` to make the converter use your custom data. Replace the arguments with an image and FEN that match the piece style you want to recognise.
-
-4. Run the converter on a board screenshot. If a `piece_templates_chesscom.npz`
-   archive sits alongside `convert.py`, the command-line tool will automatically
-   use it; otherwise the bundled default templates are loaded. You can override
-   the selection explicitly with the `--templates` option:
-
-   ```bash
-   python convert.py path/to/board.png
-   python convert.py chess.png --templates piece_templates_chesscom.npz
-   ```
-
-   The resulting FEN string is printed to stdout. Supplying the Chess.com
-   template archive (either explicitly or via auto-detection) lets the standard
-   converter recognise Chess.com-style piece sets without needing the enhanced
-   `fen_fix.py` workflow.
-
-## Using the enhanced converter on full screenshots
-
-In situations where you have a full window capture with borders, arrows or flipped boards (for example, Chess.com game screenshots), the original converter will not work out of the box.  To handle these cases, this repository includes an alternate script `fen_fix.py` and a set of prebuilt templates for the Chess.com piece style (`piece_templates_chesscom.npz`).
-
-The enhanced converter automatically crops the chessboard from the screenshot, tests all four orientations and uses the supplied template archive to detect pieces.  To run it on a Chess.com screenshot use:
+Convert an image and print the FEN:
 
 ```bash
-python fen_fix.py --image path/to/screenshot.png --templates piece_templates_chesscom.npz
+python -m fen_converter.cli convert path/to/screenshot.png
 ```
 
-If your screenshot uses a different piece design, generate templates from a labelled board image as described above and provide the resulting `.npz` file via the `--templates` option.
+Once installed you can call the package entry point:
 
-Like `convert.py`, `fen_fix.py` will print the resulting FEN string to stdout.
+```bash
+fen-converter convert path/to/screenshot.png
+```
+
+
+Accept the suggestions automatically (non-interactive mode):
+
+```bash
+python -m fen_converter.cli convert path/to/screenshot.png --no-interactive
+```
+
+Preview the classifier suggestions without generating a FEN:
+
+```bash
+python -m fen_converter.cli suggest path/to/screenshot.png
+```
+
+Save the rectified board that the detector uses:
+
+```bash
+python -m fen_converter.cli convert examples/diagram.png --save-board artifacts/board.png
+```
+
+## Tests
+
+The included unit tests validate board detection, square extraction, and FEN construction.
+Run them with:
+
+```bash
+pytest
+```
