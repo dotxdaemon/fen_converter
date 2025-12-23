@@ -24,9 +24,12 @@ def convert(
         "--save-board",
         help="Save the rectified chessboard image for inspection.",
     ),
-    interactive: bool = typer.Option(True, "--interactive/--no-interactive", help="Run the interactive labeler to confirm each square."),
+    interactive: bool = typer.Option(True, "--interactive", "-i", is_flag=True, help="Run the interactive labeler to confirm each square."),
+    no_interactive: bool = typer.Option(False, "--no-interactive", "-n", is_flag=True, help="Skip interactive labeling."),
 ) -> None:
     """Convert a chessboard screenshot to a FEN string."""
+
+    use_interactive = interactive and not no_interactive
 
     try:
         detected = detect_board(image)
@@ -44,7 +47,7 @@ def convert(
 
     squares = extract_square_images(detected.image)
     classifier = SquareClassifier()
-    labels = label_squares(squares, classifier=classifier, interactive=interactive)
+    labels = label_squares(squares, classifier=classifier, interactive=use_interactive)
     fen = build_fen(labels)
 
     if output:
